@@ -65,16 +65,6 @@ class TransactionTest(unittest.TestCase):
         self.assertEqual(self.root.getAccount("Assets").getValue("STOCK"), 10)
         self.assertEqual(self.root.getAccount("Assets").getValue("$"), -1000)
 
-    """
-    def test_out_of_order_validation(self):
-        t = Transaction("2000/01/01", "Test", self.root)
-        t.addItem("Assets", "$10")
-        t.addItem("Assets", "=$0")
-        t.addItem("Assets", "$10")
-        t.addItem("Dummy")
-        self.assertEqual(self.root.getAccount("Assets").getValue("$"), 10)
-    """
-
     def dummyAdd(self, accountName, valueStr):
         t = Transaction("2000/01/01", "Test", self.root)
         t.addItem(accountName, valueStr)
