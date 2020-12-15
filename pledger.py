@@ -143,19 +143,20 @@ class TransactionItem:
 
 class Transaction:
 
-    def __init__(self, date, title, root):
+    def __init__(self, date, title, root, line_num=None):
         self.items = []
         self.inferred_item = None
         self.date = date
         self.title = title.strip()
         self.initialize = self.title.startswith("*")
         self.root = root
+        self.line_num = line_num
 
     def __lt__(self, other):
         return self.date < other.date
 
     def getHeader(self):
-        return "{} {}".format(self.date, self.title)
+        return "#{} {} {}".format(self.line_num, self.date, self.title)
 
     def __repr__(self):
         return self.getHeader()
@@ -183,11 +184,11 @@ class Transaction:
                 s = sum([item.getValue(c) for item in self.items if not item.isNetZero()])
                 if self.inferred_item:
                     self.inferred_item.setValue(c, -s)
-                    s += -s
-                if s != 0:
+                    s = 0
+                if s > 1e6:
                     logging.error("Transaction doesn't balance %d '%s' %s", s, c, [item.getValue(c) for item in self.items])
+                    raise ValueError("Transaction doesn't balance ")
 
-                assert s == 0, str(s)
             for item in self.items:
                 item.account.addValue(c, item.getValue(c), self.initialize)
                 item.setPostAccountValue(c, item.account.getValue(c))
@@ -224,6 +225,8 @@ def register(root, transactions, filterStr=None):
 def parse_args(args=None, lines=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--file", default=os.getenv("LEDGER_FILE"))
+
+    parser.add_argument("--sorted", default=False, action="store_const", const=True)
     parser.add_argument("--start")
     parser.add_argument("--end")
     parser.add_argument("type")
@@ -232,10 +235,10 @@ def parse_args(args=None, lines=None):
     ledger_file = namespace.file
 
     if lines:
-        root, transactions = parse_file(lines)
+        root, transactions = parse_file(lines, check_sorted=namespace.sorted)
     else:
         with open(ledger_file, "r") as f:
-            root, transactions = parse_file(f)
+            root, transactions = parse_file(f, check_sorted=namespace.sorted)
 
     for func in [balance, register]:
         if func.__name__.startswith(namespace.type):
@@ -243,7 +246,7 @@ def parse_args(args=None, lines=None):
             break
 
 
-def parse_file(f, root=Account()):
+def parse_file(f, root=Account(), check_sorted=False):
 
     transactions = []
     t = None
@@ -256,13 +259,19 @@ def parse_file(f, root=Account()):
                 firstChar = data[0]
                 if data[0] in whitespace:
                     t.addItem(itemStr[0], " ".join(itemStr[1:]), line_num=i)
+                elif data[0] == "P":
+                    pass
                 else:
-                    t = Transaction(date=itemStr[0], title=" ".join(itemStr[1:]), root=root)
+                    t = Transaction(date=itemStr[0], title=" ".join(itemStr[1:]), root=root, line_num=i)
+                    if check_sorted and transactions:
+                        if transactions[-1] > t:
+                            logging.warn("Not sorted %s %s", transactions[-1], t)
                     transactions.append(t)
         except Exception as e:
             logging.error("Error processing line #%d %s", i, line)
             raise e
 
+    print(check_sorted)
     for t in transactions:
         try:
             t.commit()
@@ -274,5 +283,5 @@ def parse_file(f, root=Account()):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(format='[%(filename)s:%(lineno)s]%(levelname)s:%(message)s', level=logging.DEBUG)
+    logging.basicConfig(format='[%(filename)s:%(lineno)s]%(levelname)s:%(message)s', level=logging.INFO)
     parse_args()
