@@ -261,9 +261,13 @@ def parse_file(f, root=Account(), check_sorted=False):
             data, comment = commentSplit[0], commentSplit[1:]
             if data.strip():
                 itemStr = data.split()
-                firstChar = data[0]
                 if data[0] in whitespace:
-                    t.addItem(itemStr[0], " ".join(itemStr[1:]), line_num=i)
+                    if T:
+                        t.addItem(itemStr[0], " ".join(itemStr[1:]), line_num=i)
+                elif data[0] in ";#%|*":  # is comment
+                    pass
+                elif data[0] == "~":  # is perodic expression; currently unsupported
+                    t = None
                 elif data[0] == "P":
                     pass
                 else:

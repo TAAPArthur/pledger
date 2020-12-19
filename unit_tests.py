@@ -125,6 +125,9 @@ class ParserTest(unittest.TestCase):
     Expenses:Food                           $150
     Assets:Credit                           -$150=-$300
 ; Comment
+% Comment
+| Comment
+* Comment
 2000/01/03 Transaction 3
     Expenses:Food                           $300; Comment
     Assets:Credit                           =-$600
