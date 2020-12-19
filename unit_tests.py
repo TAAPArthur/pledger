@@ -57,13 +57,21 @@ class TransactionTest(unittest.TestCase):
             t.commit()
             self.assertEqual(self.root.getAccount(name).getValue("$"), eval(expr.replace("$", "")))
 
-    def test_conversion(self):
+    def test_conversion_per_unit(self):
         t = Transaction("2000/01/01", "title", self.root)
         t.addItem("Assets", "10 STOCK @ $100")
         t.addItem("Assets")
         t.commit()
         self.assertEqual(self.root.getAccount("Assets").getValue("STOCK"), 10)
         self.assertEqual(self.root.getAccount("Assets").getValue("$"), -1000)
+
+    def test_conversion_total(self):
+        t = Transaction("2000/01/01", "title", self.root)
+        t.addItem("Assets", "10 STOCK @@ $100")
+        t.addItem("Assets")
+        t.commit()
+        self.assertEqual(self.root.getAccount("Assets").getValue("STOCK"), 10)
+        self.assertEqual(self.root.getAccount("Assets").getValue("$"), -100)
 
     def dummyAdd(self, accountName, valueStr):
         t = Transaction("2000/01/01", "Test", self.root)

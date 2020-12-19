@@ -88,7 +88,12 @@ class TransactionItem:
 
     def __parse(self, token):
         if token:
-            if "@" in token:
+            if "@@" in token:
+                parts = token.split("@@")
+                value = Decimal(currency_regex.sub("", parts[0]))
+                self.setValue(getCurrencySymbol(parts[0]), value)
+                self.setValue(getCurrencySymbol(parts[1]), Decimal(currency_regex.sub("", parts[1])) * -abs(value) / value)
+            elif "@" in token:
                 parts = token.split("@")
                 value = Decimal(currency_regex.sub("", parts[0]))
                 self.setValue(getCurrencySymbol(parts[0]), value)
