@@ -20,6 +20,7 @@ class Account:
         self.name = name
         self.parent = parent
         self.values = {}
+        self.market = {}
         if parent:
             assert name
             self.parent.children[name] = self
@@ -35,6 +36,9 @@ class Account:
 
     def __repr__(self):
         return str(self)
+
+    def getRoot(self):
+        return self if self.parent == None else self.parent.getRoot()
 
     def getAccount(self, name):
         parent = self
@@ -53,6 +57,12 @@ class Account:
                 self.values[currency] = value
             else:
                 self.values[currency] = self.values.get(currency, 0) + value
+
+    def setMarketPrice(self, currency, c, value):
+        self.market[currency] = value
+
+    def getMarketPrice(self, currency, target):
+        return 1 if currency == target else self.market[currency]
 
     def __getValue(self, currency):
         return self.values.get(currency, 0) + sum([children.__getValue(currency) for children in self.children.values()])
@@ -91,13 +101,18 @@ class TransactionItem:
             if "@@" in token:
                 parts = token.split("@@")
                 value = Decimal(currency_regex.sub("", parts[0]))
+                total_value = Decimal(currency_regex.sub("", parts[1])) * -abs(value) / value
                 self.setValue(getCurrencySymbol(parts[0]), value)
-                self.setValue(getCurrencySymbol(parts[1]), Decimal(currency_regex.sub("", parts[1])) * -abs(value) / value)
+                self.setValue(getCurrencySymbol(parts[1]), total_value)
+
+                self.account.getRoot().setMarketPrice(getCurrencySymbol(parts[0]), getCurrencySymbol(parts[1]), -total_value / value)
             elif "@" in token:
                 parts = token.split("@")
                 value = Decimal(currency_regex.sub("", parts[0]))
+                value_per_unit = Decimal(currency_regex.sub("", parts[1]))
                 self.setValue(getCurrencySymbol(parts[0]), value)
-                self.setValue(getCurrencySymbol(parts[1]), value * Decimal(currency_regex.sub("", parts[1])) * -1)
+                self.setValue(getCurrencySymbol(parts[1]), value * value_per_unit * -1)
+                self.account.getRoot().setMarketPrice(getCurrencySymbol(parts[0]), getCurrencySymbol(parts[1]), value_per_unit)
             elif "=" in token:
                 parts = token.split("=")
 
@@ -205,30 +220,44 @@ def print_balance(value, currency, name=None):
     print(f"{formatted_value:>10s} {currency:>4s} " + (f"{name}" if name else ""))
 
 
-def recursive_print(parent, filterStr, level=1, running_total=None):
+def get_nested_accounts(parent, filterStr, running_total=None):
     for account in parent.children.values():
         if not filterStr or account.matches(filterStr):
             for c in account.getCurrencies():
                 if account.getValue(c):
                     if not running_total is None:
                         running_total[c] = running_total.get(c, 0) + account.getSpecificValue(c)
-                    print_balance(account.getValue(c), c, account.getProperName())
-        recursive_print(account, filterStr, level + 1, running_total)
+            yield account
+        yield from get_nested_accounts(account, filterStr, running_total)
 
 
-def balance(root, transactions, filterStr=None):
+def balance(root, transactions, filterStr=None, market=None):
     running_total = {}
-    recursive_print(root, filterStr, running_total=running_total)
-    for c in running_total:
-        print("{:-12.4f} {:5s}".format(running_total[c], c))
+    for account in get_nested_accounts(root, filterStr, running_total=running_total):
+        if market:
+            total = 0
+            total = sum([account.getValue(c) * root.getMarketPrice(c, target=market) for c in account.getCurrencies() if account.getValue(c)])
+            if total:
+                print_balance(total, market, account.getProperName())
+        else:
+            for c in account.getCurrencies():
+                if account.getValue(c):
+                    print_balance(account.getValue(c), c, account.getProperName())
+    if market in account.getCurrencies():
+        total = sum([running_total[c] * root.getMarketPrice(c, target=market) for c in running_total.keys()])
+        print_balance(total, market)
+    else:
+        for c in running_total:
+            print_balance(running_total[c], c)
     return running_total
 
 
-def register(root, transactions, filterStr=None):
+def register(root, transactions, filterStr=None, market=None):
     for transaction in transactions:
         for item in transaction.items:
-            for c in item.getCurrencies():
-                print("{}\t{}\t{}\t{}".format(transaction.getHeader(), item.account.getProperName(), item.getValue(c), item.getPostAccountValue(c)))
+            if not filterStr or item.account.matches(filterStr):
+                for c in item.getCurrencies():
+                    print("{}\t{}\t{}{:-12.2f}\t{}{:-12.2f}".format(transaction.getHeader(), item.account.getProperName(), c, item.getValue(c), c, item.getPostAccountValue(c)))
 
 
 def parse_args(args=None, lines=None):
@@ -238,6 +267,7 @@ def parse_args(args=None, lines=None):
     parser.add_argument("--sorted", default=False, action="store_const", const=True)
     parser.add_argument("--start")
     parser.add_argument("--end")
+    parser.add_argument("--market", "-m", action="store_const", const="$")
     parser.add_argument("type")
     parser.add_argument("accounts", nargs="*")
     namespace = parser.parse_args(args)
@@ -251,7 +281,7 @@ def parse_args(args=None, lines=None):
 
     for func in [balance, register]:
         if func.__name__.startswith(namespace.type):
-            func(root, transactions, namespace.accounts)
+            func(root, transactions, namespace.accounts, market=namespace.market)
             break
 
 
@@ -273,7 +303,11 @@ def parse_file(f, root=Account(), check_sorted=False):
                 elif data[0] == "~":  # is perodic expression; currently unsupported
                     t = None
                 elif data[0] == "P":
-                    pass
+                    _, date, currency, value = data.split()
+
+                    v = Decimal(currency_regex.sub("", value))
+                    c = getCurrencySymbol(value)
+                    root.setMarketPrice(currency, c, v)
                 elif data[0].isdigit():
                     t = Transaction(date=itemStr[0], title=" ".join(itemStr[1:]), root=root, line_num=i)
                     if check_sorted and transactions:
