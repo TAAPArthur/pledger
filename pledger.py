@@ -262,7 +262,7 @@ def parse_file(f, root=Account(), check_sorted=False):
             if data.strip():
                 itemStr = data.split()
                 if data[0] in whitespace:
-                    if T:
+                    if t:
                         t.addItem(itemStr[0], " ".join(itemStr[1:]), line_num=i)
                 elif data[0] in ";#%|*":  # is comment
                     pass
@@ -270,7 +270,7 @@ def parse_file(f, root=Account(), check_sorted=False):
                     t = None
                 elif data[0] == "P":
                     pass
-                else:
+                elif data[0].isdigit():
                     t = Transaction(date=itemStr[0], title=" ".join(itemStr[1:]), root=root, line_num=i)
                     if check_sorted and transactions:
                         if transactions[-1] > t:
