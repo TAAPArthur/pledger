@@ -200,6 +200,11 @@ class Transaction:
                 item.postVerify()
 
 
+def print_balance(value, currency, name=None):
+    formatted_value = f"{value:-,.2f}"
+    print(f"{formatted_value:>10s} {currency:>4s} " + (f"{name}" if name else ""))
+
+
 def recursive_print(parent, filterStr, level=1, running_total=None):
     for account in parent.children.values():
         if not filterStr or account.matches(filterStr):
@@ -207,8 +212,7 @@ def recursive_print(parent, filterStr, level=1, running_total=None):
                 if account.getValue(c):
                     if not running_total is None:
                         running_total[c] = running_total.get(c, 0) + account.getSpecificValue(c)
-
-                    print("{:-12.2f} {:5s} {}".format(account.getValue(c), c, account.getProperName()))
+                    print_balance(account.getValue(c), c, account.getProperName())
         recursive_print(account, filterStr, level + 1, running_total)
 
 
