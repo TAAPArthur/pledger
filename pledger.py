@@ -312,13 +312,12 @@ def parse_file(f, root=Account(), check_sorted=False):
                     t = Transaction(date=itemStr[0], title=" ".join(itemStr[1:]), root=root, line_num=i)
                     if check_sorted and transactions:
                         if transactions[-1] > t:
-                            logging.warn("Not sorted %s %s", transactions[-1], t)
+                            logging.warning("Not sorted %s %s", transactions[-1], t)
                     transactions.append(t)
         except Exception as e:
             logging.error("Error processing line #%d %s", i, line)
             raise e
 
-    print(check_sorted)
     for t in transactions:
         try:
             t.commit()
