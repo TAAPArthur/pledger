@@ -10,7 +10,7 @@ currency_regex = re.compile("[^\d\.\-\(\)\*\+\-/ ]+")
 
 def getCurrencySymbol(token):
     match = currency_regex.search(token.strip())
-    return match.group(0) if(match) else None
+    return match.group(0) if(match) else ""
 
 
 class Account:
