@@ -157,7 +157,7 @@ class TransactionItem:
     def postVerify(self):
         if self.finalValue:
             c, value = self.finalValue
-            if self.account.getValue(c) != value:
+            if abs(self.account.getValue(c) - value) > 1e-6:
                 raise ValueError("Expected Value {} instead of {}".format(value, self.account.getValue(c)))
 
 
@@ -205,8 +205,8 @@ class Transaction:
                 if self.inferred_item:
                     self.inferred_item.setValue(c, -s)
                     s = 0
-                if s > 1e6:
-                    logging.error("Transaction doesn't balance %d '%s' %s", s, c, [item.getValue(c) for item in self.items])
+                if s > 1e-6:
+                    logging.error("Transaction doesn't balance %.02f '%s' %s", s, c, [item.getValue(c) for item in self.items])
                     raise ValueError("Transaction doesn't balance ")
 
             for item in self.items:

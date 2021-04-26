@@ -88,6 +88,16 @@ class TransactionTest(unittest.TestCase):
         self.dummyAdd("Assets", "=$160")
         self.assertEqual(self.root.getAccount("Assets").getValue("$"), 160)
 
+    def test_validation_assert_equal_fail(self):
+        t = Transaction("2000/01/01", "Test", self.root)
+        t.addItem("Assets", "$1")
+        t.addItem("Expenses", "$1")
+        self.assertRaises(ValueError, t.commit)
+
+    def test_validation_imblanced(self):
+        self.dummyAdd("Assets", "$100")
+        self.assertRaises(ValueError, self.dummyAdd, "Assets", "$10=$10")
+
     def test_validation_decimal(self):
         self.dummyAdd("Assets", "$1.0")
         self.dummyAdd("Assets", "$.10=$1.10")
