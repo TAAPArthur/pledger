@@ -257,7 +257,7 @@ def register(root, transactions, filterStr=None, market=None):
         for item in transaction.items:
             if not filterStr or item.account.matches(filterStr):
                 for c in item.getCurrencies():
-                    print("{}\t{}\t{}{:-12.2f}\t{}{:-12.2f}".format(transaction.getHeader(), item.account.getProperName(), c, item.getValue(c), c, item.getPostAccountValue(c)))
+                    print("{:50.50s}\t{:20.20s}\t{:3.3s}{:-12.2f}\t{:3.3s}{:-12.2f}".format(transaction.getHeader(), item.account.getProperName(), c, item.getValue(c), c, item.getPostAccountValue(c)))
 
 
 def parse_args(args=None, lines=None):
