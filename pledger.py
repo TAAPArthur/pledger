@@ -5,6 +5,7 @@ import re
 from string import whitespace
 import logging
 from decimal import Decimal
+from collections import defaultdict
 
 currency_regex = re.compile("[^\d\.\-\(\)\*\+\-/ ]+")
 
@@ -176,6 +177,9 @@ class Transaction:
     def __lt__(self, other):
         return self.date < other.date
 
+    def get_date_identifier(self, date_index):
+        return "/".join(self.date.split("/")[:date_index+1])
+
     def getHeader(self):
         return "#{} {} {}".format(self.line_num, self.date, self.title)
 
@@ -232,7 +236,7 @@ def get_nested_accounts(parent, filterStr, running_total=None):
         yield from get_nested_accounts(account, filterStr, running_total)
 
 
-def balance(root, transactions, filterStr=None, market=None):
+def balance(root, transactions, filterStr=None, market=None, **kwargs):
     running_total = {}
     for account in get_nested_accounts(root, filterStr, running_total=running_total):
         if market:
@@ -253,13 +257,27 @@ def balance(root, transactions, filterStr=None, market=None):
     return running_total
 
 
-def register(root, transactions, filterStr=None, market=None):
+def register(root, transactions, filterStr=None, market=None, **kwargs):
     for transaction in transactions:
         for item in transaction.items:
             if not filterStr or item.account.matches(filterStr):
                 for c in item.getCurrencies():
                     print("{:50.50s}\t{:20.20s}\t{:3.3s}{:-12.2f}\t{:3.3s}{:-12.2f}".format(transaction.getHeader(), item.account.getProperName(), c, item.getValue(c), c, item.getPostAccountValue(c)))
 
+def report(root, transactions, filterStr=None, date_index=1, market="$", **kwargs):
+    groups = defaultdict(lambda : 0)
+    for transaction in transactions:
+        key = transaction.get_date_identifier(date_index)
+        for item in transaction.items:
+            if not filterStr or item.account.matches(filterStr):
+                if market :
+                    groups[key] += sum([item.getValue(c) * root.getMarketPrice(c, target=market) for c in item.getCurrencies()])
+                else:
+                    for c in item.getCurrencies():
+                        groups[key+c]+=item.getValue(c)
+
+    for key, value in groups.items():
+        print(f"{key:.50s}, {value:-12.2f}")
 
 def parse_args(args=None, lines=None):
     parser = argparse.ArgumentParser()
@@ -268,9 +286,24 @@ def parse_args(args=None, lines=None):
     parser.add_argument("--sorted", default=False, action="store_const", const=True)
     parser.add_argument("--start")
     parser.add_argument("--end")
-    parser.add_argument("--market", "-m", action="store_const", const="$")
-    parser.add_argument("type")
-    parser.add_argument("accounts", nargs="*")
+    parser.add_argument("--market", action="store_const", const="$")
+
+    sub_parsers = parser.add_subparsers(dest="type")
+
+    balance_parser = sub_parsers.add_parser("balance", description="Report balance for accounts", aliases=["bal", "b"])
+    balance_parser.set_defaults(func=balance)
+
+    register_parser = sub_parsers.add_parser("register", description="List items involving account", aliases=["reg", "r"])
+    register_parser.set_defaults(func=register)
+
+    report_parser = sub_parsers.add_parser("report", description="List items involving account", aliases=["rep"])
+    report_parser.add_argument("--monthly", "-m", action="store_const", const=1, dest="date_index")
+    report_parser.add_argument("--yearly", "-y", action="store_const", const=0, dest="date_index")
+    report_parser.add_argument("--daily", "-d", action="store_const", const=2, dest="date_index")
+    report_parser.set_defaults(func=report)
+
+    parser.add_argument("accounts", default=None, nargs="+")
+
     namespace = parser.parse_args(args)
     ledger_file = namespace.file
 
@@ -280,10 +313,8 @@ def parse_args(args=None, lines=None):
         with open(ledger_file, "r") as f:
             root, transactions = parse_file(f, check_sorted=namespace.sorted)
 
-    for func in [balance, register]:
-        if func.__name__.startswith(namespace.type):
-            func(root, transactions, namespace.accounts, market=namespace.market)
-            break
+    kwargs = {k: v for k, v in vars(namespace).items()}
+    namespace.func(root, transactions, namespace.accounts, **kwargs,)
 
 
 def parse_file(f, root=Account(), check_sorted=False):
