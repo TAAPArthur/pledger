@@ -302,7 +302,7 @@ def parse_args(args=None, lines=None):
     report_parser.add_argument("--daily", "-d", action="store_const", const=2, dest="date_index")
     report_parser.set_defaults(func=report)
 
-    parser.add_argument("accounts", default=None, nargs="+")
+    parser.add_argument("accounts", default=None, nargs="*")
 
     namespace = parser.parse_args(args)
     ledger_file = namespace.file

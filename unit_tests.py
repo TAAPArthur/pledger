@@ -1,5 +1,5 @@
 import unittest
-from .pledger import *
+from pledger import *
 import logging
 from decimal import Decimal
 
