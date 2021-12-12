@@ -121,6 +121,42 @@ class TransactionTest(unittest.TestCase):
             pass
 
 
+class PeriodicTransactionTest(unittest.TestCase):
+    lines = """
+2000/01/01 * Start
+    Assets:Credit					        =$0
+    Expensese:Credit					        =$1
+
+~daily
+    Assets:Credit:D					       -$1
+    Expenses
+
+~monthly
+    Assets:Credit:M					       -$100
+    Expenses
+
+~yearly
+    Expenses
+    Assets:Credit:Y					       -$1000
+
+2000/01/02 DailyTest
+    Assets:Debit					       -$.01
+    Expenses
+
+2000/02/01 MonthlyTest
+    Assets:Debit					        -$10
+    Expenses
+
+2001/01/01 YearlyTest
+    Assets:Debit					       -$100
+    Expenses:A
+""".splitlines()
+
+    def test_periodic_transaction(self):
+        root, transactions = parse_file(self.lines)
+        self.assertEqual(int(root.getAccount("Assets:Credit").getValue("$")), -(366 * 1 + 12 * 100 + 1 * 1000))
+
+
 class AutoTransactionTest(unittest.TestCase):
     perecent_lines = """
 2000/01/01 * Start

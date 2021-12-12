@@ -1,11 +1,12 @@
 #!/bin/python3
 import argparse
+import datetime
+import logging
 import os
 import re
-from string import whitespace
-import logging
-from decimal import Decimal
 from collections import defaultdict
+from decimal import Decimal
+from string import whitespace
 
 currency_regex = re.compile("[^\d\.\-\(\)\*\+\-/ ]+")
 
@@ -197,7 +198,7 @@ class AutoTransaction:
         for item, accountName in self.items:
             c = item.getSingleCurrency()
             value = item.getValue(c) if c else item.getValue(c) * refItem.getValue(refCurrency)
-            transaction.addItem(accountName, (c, value), line_num=item.line_num)
+            transaction.addItem(accountName, (c or refCurrency, value), line_num=item.line_num)
 
 
 class Transaction:
@@ -362,11 +363,36 @@ def parse_args(args=None, lines=None):
     namespace.func(root, transactions, namespace.accounts, **kwargs,)
 
 
-def parse_file(f, root=Account(), check_sorted=False, end=None):
+def next_date(date, index):
+    if index == 0:
+        return date.replace(year=date.year + 1)
+    elif index == 1:
+        try:
+            return date.replace(month=date.month + 1)
+        except ValueError:
+            return date.replace(year=date.year + 1, month=1)
+    elif index == 2:
+        try:
+            return date.replace(day=date.day + 1)
+        except ValueError:
+            return next_date(date.replace(day=1), 1)
+
+
+def parse_file(f, root=None, check_sorted=False, end=None):
+    if root is None:
+        root = Account()
 
     transactions = []
     auto_transactions = []
+    periodic_transactions = []
     t = None
+    lastDate = None
+
+    def helper(t, itemStr):
+        item = t.addItem(itemStr[0], " ".join(itemStr[1:]), line_num=i)
+        for auto_transaction in auto_transactions:
+            if auto_transaction != t and auto_transaction.matchesTransactionItem(item):
+                auto_transaction.addToTransaction(t, item)
     for i, line in enumerate(f):
         try:
             commentSplit = line.split(";")
@@ -375,16 +401,26 @@ def parse_file(f, root=Account(), check_sorted=False, end=None):
             if data.strip():
                 itemStr = data.split()
                 if data[0] in whitespace:
-                    if t:
-                        item = t.addItem(itemStr[0], " ".join(itemStr[1:]), line_num=i)
-                        for auto_transaction in auto_transactions:
-                            if auto_transaction != t and auto_transaction.matchesTransactionItem(item):
-                                auto_transaction.addToTransaction(t, item)
+                    if isinstance(t, list):
+                        t.append(itemStr)
+                    elif t:
+                        helper(t, itemStr)
 
                 elif data[0] in ";#%|*":  # is comment
                     pass
                 elif data[0] == "~":  # is perodic expression; currently unsupported
-                    t = None
+                    if itemStr[0][1:] == "yearly":
+                        index = 0
+                        d = next_date(lastDate.replace(month=1), index)
+                    elif itemStr[0][1:] == "monthly":
+                        index = 1
+                        d = next_date(lastDate.replace(day=1), index)
+                    elif itemStr[0][1:] == "daily":
+                        index = 2
+                        d = next_date(lastDate, index)
+                    t = []
+                    periodic_transactions.append([d, data[1:], index, t])
+                    periodic_transactions.sort()
                 elif data[0] == "=":  # is automatic expression
                     t = AutoTransaction(" ".join(itemStr[1:]), root=root, )
                     auto_transactions.append(t)
@@ -397,6 +433,14 @@ def parse_file(f, root=Account(), check_sorted=False, end=None):
                 elif data[0].isdigit():
                     if end is not None and itemStr[0] > end:
                         break
+                    lastDate = datetime.date(*list(map(int, itemStr[0].split("/"))))
+                    while periodic_transactions and lastDate >= periodic_transactions[0][0]:
+                        t = Transaction(date=periodic_transactions[0][0].strftime('%Y/%m/%d'), title=periodic_transactions[0][1], root=root, line_num=i)
+                        for args in periodic_transactions[0][-1]:
+                            helper(t, args)
+                        transactions.append(t)
+                        periodic_transactions[0][0] = next_date(periodic_transactions[0][0], periodic_transactions[0][-2])
+                        periodic_transactions.sort()
                     t = Transaction(date=itemStr[0], title=" ".join(itemStr[1:]), root=root, line_num=i)
                     if check_sorted and transactions:
                         if transactions[-1] > t:
