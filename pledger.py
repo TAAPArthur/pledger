@@ -274,7 +274,7 @@ def register(root, transactions, filterStr=None, market=None, **kwargs):
 def report(root, transactions, filterStr=None, date_index=1, market="$", **kwargs):
     groups = defaultdict(lambda: 0)
     for transaction in transactions:
-        key = transaction.get_date_identifier(date_index)
+        key = transaction.get_date_identifier(date_index if date_index is not None else 1)
         for item in transaction.items:
             if not filterStr or item.account.matches(filterStr):
                 if market:
@@ -310,9 +310,9 @@ def parse_args(args=None, lines=None):
     register_parser.set_defaults(func=register)
 
     report_parser = sub_parsers.add_parser("report", description="List items involving account", aliases=["rep"], parents=[shared_parser])
+    report_parser.add_argument("--daily", "-d", action="store_const", const=2, dest="date_index")
     report_parser.add_argument("--monthly", "-m", action="store_const", const=1, dest="date_index")
     report_parser.add_argument("--yearly", "-y", action="store_const", const=0, dest="date_index")
-    report_parser.add_argument("--daily", "-d", action="store_const", const=2, dest="date_index")
     report_parser.set_defaults(func=report)
 
     namespace = parser.parse_args(args)

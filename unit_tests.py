@@ -147,11 +147,15 @@ class ParserTest(unittest.TestCase):
         assert(root.children)
         assert(transactions)
 
-    def test_balance(self):
-        parse_args(["bal"], self.lines)
-
-    def test_register(self):
-        parse_args(["reg"], self.lines)
+    def test_subcommands(self):
+        for cmd in ["balance", "register", "report"]:
+            with self.subTest(cmd=cmd):
+                parse_args([cmd], self.lines)
+                parse_args([cmd[0]], self.lines)
+                parse_args([cmd[:3]], self.lines)
+                parse_args([cmd, "Assets"], self.lines)
+                parse_args([cmd, "Assets", "Expenses"], self.lines)
+                parse_args([cmd, "A", "E"], self.lines)
 
 
 if __name__ == '__main__':
