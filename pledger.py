@@ -258,9 +258,9 @@ class Transaction:
                 item.postVerify()
 
 
-def print_balance(value, currency, name=None):
+def print_balance(value, currency, name=None, depth=0):
     formatted_value = f"{value:-,.2f}"
-    print(f"{formatted_value:>10s} {currency:>4s} " + (f"{name}" if name else ""))
+    print(f"{formatted_value:>12s} {currency:>4s} " + ("\t" * depth) + (f"{name}" if name else ""))
 
 
 def get_nested_accounts(parent, filterStr, running_total=None):
@@ -281,11 +281,11 @@ def balance(root, transactions, filterStr=None, market=None, depth=None, **kwarg
             total = 0
             total = sum([account.getValue(c) * root.getMarketPrice(c, target=market) for c in account.getCurrencies() if account.getValue(c)])
             if total:
-                print_balance(total, market, account.getProperName())
+                print_balance(total, market, account.getProperName(), depth=account.getDepth())
         else:
             for c in account.getCurrencies():
                 if account.getValue(c):
-                    print_balance(account.getValue(c), c, account.getProperName())
+                    print_balance(account.getValue(c), c, account.getProperName(), depth=account.getDepth())
     if market in account.getCurrencies():
         total = sum([running_total[c] * root.getMarketPrice(c, target=market) for c in running_total.keys()])
         print_balance(total, market)
