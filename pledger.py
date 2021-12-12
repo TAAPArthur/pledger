@@ -42,6 +42,12 @@ class Account:
     def getRoot(self):
         return self if self.parent == None else self.parent.getRoot()
 
+    def getDepth(self):
+        return self.getProperName().count(":")
+
+    def filterByDepth(self, depth):
+        return depth is None or self.getDepth() < depth
+
     def getAccount(self, name):
         parent = self
         for component in name.split(":"):
@@ -236,9 +242,9 @@ def get_nested_accounts(parent, filterStr, running_total=None):
         yield from get_nested_accounts(account, filterStr, running_total)
 
 
-def balance(root, transactions, filterStr=None, market=None, **kwargs):
+def balance(root, transactions, filterStr=None, market=None, depth=None, **kwargs):
     running_total = {}
-    for account in get_nested_accounts(root, filterStr, running_total=running_total):
+    for account in filter(lambda x: x.filterByDepth(depth), get_nested_accounts(root, filterStr, running_total=running_total)):
         if market:
             total = 0
             total = sum([account.getValue(c) * root.getMarketPrice(c, target=market) for c in account.getCurrencies() if account.getValue(c)])
@@ -296,6 +302,8 @@ def parse_args(args=None, lines=None):
     sub_parsers = parser.add_subparsers(dest="type")
 
     balance_parser = sub_parsers.add_parser("balance", description="Report balance for accounts", aliases=["bal", "b"], parents=[shared_parser])
+
+    balance_parser.add_argument("--depth", "-d", type=int)
     balance_parser.set_defaults(func=balance)
 
     register_parser = sub_parsers.add_parser("register", description="List items involving account", aliases=["reg", "r"], parents=[shared_parser])
