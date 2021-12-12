@@ -263,7 +263,7 @@ def balance(root, transactions, filterStr=None, market=None, depth=None, **kwarg
     return running_total
 
 
-def register(root, transactions, filterStr=None, market=None, **kwargs):
+def register(root, transactions, filterStr=None, market=None, start=None, **kwargs):
     for transaction in transactions:
         for item in transaction.items:
             if not filterStr or item.account.matches(filterStr):
@@ -325,6 +325,8 @@ def parse_args(args=None, lines=None):
             root, transactions = parse_file(f, check_sorted=namespace.sorted, end=namespace.end)
 
     kwargs = {k: v for k, v in vars(namespace).items()}
+    if kwargs.get("start") is not None:
+        transactions = filter(lambda x: x.date < namespace.start, transactions)
     namespace.func(root, transactions, namespace.accounts, **kwargs,)
 
 
