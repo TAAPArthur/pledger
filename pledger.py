@@ -130,6 +130,8 @@ class TransactionItem:
                 self.finalValue = getCurrencySymbol(parts[1]), Decimal(currency_regex.sub("", parts[1]))
                 if parts[0]:
                     self.__parse(parts[0])
+                else:
+                    self.computeValueIfMissing()
             elif "(" in token:
                 self.setValue(getCurrencySymbol(token), eval(currency_regex.sub("", token)))
             else:
@@ -251,7 +253,7 @@ class Transaction:
                     s = 0
                 if s > 1e-6:
                     logging.error("Transaction doesn't balance %.02f '%s' %s", s, c, [item.getValue(c) for item in self.items])
-                    raise ValueError("Transaction doesn't balance ")
+                    raise ValueError(f"Transaction doesn't balance at {self.line_num}")
 
             for item in self.items:
                 item.account.addValue(c, item.getValue(c), self.initialize)
@@ -394,6 +396,7 @@ def parse_file(f, root=None, check_sorted=False, end=None):
             if auto_transaction != t and auto_transaction.matchesTransactionItem(item):
                 auto_transaction.addToTransaction(t, item)
     for i, line in enumerate(f):
+        last_t = t
         try:
             commentSplit = line.split(";")
             data, _ = commentSplit[0], commentSplit[1:]
@@ -436,9 +439,10 @@ def parse_file(f, root=None, check_sorted=False, end=None):
                     lastDate = datetime.date(*list(map(int, itemStr[0].split("/"))))
                     while periodic_transactions and lastDate >= periodic_transactions[0][0]:
                         t = Transaction(date=periodic_transactions[0][0].strftime('%Y/%m/%d'), title=periodic_transactions[0][1], root=root, line_num=i)
+                        transactions.append(t)
                         for args in periodic_transactions[0][-1]:
                             helper(t, args)
-                        transactions.append(t)
+                        t.commit()
                         periodic_transactions[0][0] = next_date(periodic_transactions[0][0], periodic_transactions[0][-2])
                         periodic_transactions.sort()
                     t = Transaction(date=itemStr[0], title=" ".join(itemStr[1:]), root=root, line_num=i)
@@ -449,13 +453,10 @@ def parse_file(f, root=None, check_sorted=False, end=None):
         except Exception as e:
             logging.error("Error processing line #%d %s", i, line)
             raise e
+        if isinstance(last_t, Transaction) and last_t != t:
+            last_t.commit()
 
-    for t in transactions:
-        try:
-            t.commit()
-        except ValueError:
-            t.dump()
-            raise
+    transactions[-1].commit()
 
     return root, transactions
 
