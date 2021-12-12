@@ -1,7 +1,6 @@
 import unittest
-from pledger import *
-import logging
 from decimal import Decimal
+from pledger import getCurrencySymbol, Account, Transaction, parse_file, parse_args
 
 
 class CurrencyTest(unittest.TestCase):
@@ -156,9 +155,5 @@ class ParserTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(format='[%(filename)s:%(lineno)s]%(levelname)s:%(message)s', level=logging.DEBUG)
-    logger = logging.getLogger()
-    stream_handler = logging.StreamHandler(sys.stdout)
-    logger.addHandler(stream_handler)
 
     unittest.main()
