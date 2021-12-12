@@ -121,6 +121,38 @@ class TransactionTest(unittest.TestCase):
             pass
 
 
+class AutoTransactionTest(unittest.TestCase):
+    perecent_lines = """
+2000/01/01 * Start
+    Assets:Credit					         -$50
+    Expenses:Food                           $0
+= Assets:Credit
+    Assets:CashBack                         .1
+
+2000/01/02 Transaction 2
+    Assets:Credit                           -$100
+    Expenses:Food                           $110
+""".splitlines()
+    abs_lines = """
+2000/01/02 Transaction 3
+    Assets:Debit                           -$100
+    Expenses:Food                           $100
+
+= Assets:Debit
+    Assets:Debit                          -$.1
+
+2000/01/02 Transaction 4
+    Assets:Debit                           -$100
+    Expenses:Food                          $100.1
+    """.splitlines()
+
+    def test_auto_transaction_percent(self):
+        root, transactions = parse_file(self.perecent_lines)
+
+    def test_auto_transaction_abs(self):
+        root, transactions = parse_file(self.abs_lines)
+
+
 class ParserTest(unittest.TestCase):
     lines = """
 2000/01/01 * Start

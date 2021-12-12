@@ -106,7 +106,9 @@ class TransactionItem:
 
     def __parse(self, token):
         if token:
-            if "@@" in token:
+            if isinstance(token, tuple):
+                self.setValue(token[0], token[1])
+            elif "@@" in token:
                 parts = token.split("@@")
                 value = Decimal(currency_regex.sub("", parts[0]))
                 total_value = Decimal(currency_regex.sub("", parts[1])) * -abs(value) / value
@@ -154,6 +156,9 @@ class TransactionItem:
     def getCurrencies(self):
         return self.values.keys() if not self.finalValue else [self.finalValue[0]]
 
+    def getSingleCurrency(self):
+        return list(self.values.keys())[0]
+
     def isNetZero(self):
         return len(self.values.keys()) > 1
 
@@ -167,6 +172,32 @@ class TransactionItem:
             c, value = self.finalValue
             if abs(self.account.getValue(c) - value) > 1e-6:
                 raise ValueError("Expected Value {} instead of {}".format(value, self.account.getValue(c)))
+
+
+class AutoTransaction:
+    def __init__(self, pattern, root):
+        self.pattern = re.compile(pattern)
+        self.root = root
+        self.items = []
+
+    def addItem(self, accountName, token=None, **kwargs):
+        account = self.root.getAccount(accountName)
+        item = TransactionItem(account, token, **kwargs)
+        assert len(item.getCurrencies()) == 1
+        item.currency = list(item.getCurrencies())[0]
+        self.items.append((item, accountName))
+        return item
+
+    def matchesTransactionItem(self, item):
+        return self.pattern.match(item.account.getProperName())
+
+    def addToTransaction(self, transaction, refItem):
+        assert not isinstance(transaction, AutoTransaction)
+        refCurrency = refItem.getSingleCurrency()
+        for item, accountName in self.items:
+            c = item.getSingleCurrency()
+            value = item.getValue(c) if c else item.getValue(c) * refItem.getValue(refCurrency)
+            transaction.addItem(accountName, (c, value), line_num=item.line_num)
 
 
 class Transaction:
@@ -197,13 +228,14 @@ class Transaction:
         for item in self.items:
             print(item)
 
-    def addItem(self, accountName, token=None, line_num=None):
+    def addItem(self, accountName, token=None, **kwargs):
         account = self.root.getAccount(accountName)
-        item = TransactionItem(account, token, line_num)
+        item = TransactionItem(account, token, **kwargs)
         self.items.append(item)
         if item.hasImplicitValue():
             assert self.inferred_item is None
             self.inferred_item = item
+        return item
 
     def commit(self):
         logging.debug("Committing %s", self.getHeader())
@@ -333,20 +365,29 @@ def parse_args(args=None, lines=None):
 def parse_file(f, root=Account(), check_sorted=False, end=None):
 
     transactions = []
+    auto_transactions = []
     t = None
     for i, line in enumerate(f):
         try:
             commentSplit = line.split(";")
-            data, comment = commentSplit[0], commentSplit[1:]
+            data, _ = commentSplit[0], commentSplit[1:]
+
             if data.strip():
                 itemStr = data.split()
                 if data[0] in whitespace:
                     if t:
-                        t.addItem(itemStr[0], " ".join(itemStr[1:]), line_num=i)
+                        item = t.addItem(itemStr[0], " ".join(itemStr[1:]), line_num=i)
+                        for auto_transaction in auto_transactions:
+                            if auto_transaction != t and auto_transaction.matchesTransactionItem(item):
+                                auto_transaction.addToTransaction(t, item)
+
                 elif data[0] in ";#%|*":  # is comment
                     pass
                 elif data[0] == "~":  # is perodic expression; currently unsupported
                     t = None
+                elif data[0] == "=":  # is automatic expression
+                    t = AutoTransaction(" ".join(itemStr[1:]), root=root, )
+                    auto_transactions.append(t)
                 elif data[0] == "P":
                     _, date, currency, value = data.split()
 
