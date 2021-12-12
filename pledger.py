@@ -288,21 +288,22 @@ def parse_args(args=None, lines=None):
     parser.add_argument("--end")
     parser.add_argument("--market", action="store_const", const="$")
 
+    shared_parser = argparse.ArgumentParser(add_help=False)
+    shared_parser.add_argument("accounts", default=None, nargs="*")
+
     sub_parsers = parser.add_subparsers(dest="type")
 
-    balance_parser = sub_parsers.add_parser("balance", description="Report balance for accounts", aliases=["bal", "b"])
+    balance_parser = sub_parsers.add_parser("balance", description="Report balance for accounts", aliases=["bal", "b"], parents=[shared_parser])
     balance_parser.set_defaults(func=balance)
 
-    register_parser = sub_parsers.add_parser("register", description="List items involving account", aliases=["reg", "r"])
+    register_parser = sub_parsers.add_parser("register", description="List items involving account", aliases=["reg", "r"], parents=[shared_parser])
     register_parser.set_defaults(func=register)
 
-    report_parser = sub_parsers.add_parser("report", description="List items involving account", aliases=["rep"])
+    report_parser = sub_parsers.add_parser("report", description="List items involving account", aliases=["rep"], parents=[shared_parser])
     report_parser.add_argument("--monthly", "-m", action="store_const", const=1, dest="date_index")
     report_parser.add_argument("--yearly", "-y", action="store_const", const=0, dest="date_index")
     report_parser.add_argument("--daily", "-d", action="store_const", const=2, dest="date_index")
     report_parser.set_defaults(func=report)
-
-    parser.add_argument("accounts", default=None, nargs="*")
 
     namespace = parser.parse_args(args)
     ledger_file = namespace.file
