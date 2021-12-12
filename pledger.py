@@ -79,7 +79,7 @@ class Account:
         return self.values.get(currency, 0)
 
     def getValue(self, currency):
-        return self.__getValue(currency)
+        return round(self.__getValue(currency), 12)
 
     def getCurrencies(self):
         return set(self.values.keys()).union(*[children.getCurrencies() for children in self.children.values()])
