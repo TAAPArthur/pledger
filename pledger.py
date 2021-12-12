@@ -76,7 +76,7 @@ class Account:
         return self.__getValue(currency)
 
     def getCurrencies(self):
-        return self.values.keys()
+        return set(self.values.keys()).union(*[children.getCurrencies() for children in self.children.values()])
 
     def matches(self, filter_strs):
         if not filter_strs:
