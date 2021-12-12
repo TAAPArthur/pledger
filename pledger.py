@@ -319,16 +319,16 @@ def parse_args(args=None, lines=None):
     ledger_file = namespace.file
 
     if lines:
-        root, transactions = parse_file(lines, check_sorted=namespace.sorted)
+        root, transactions = parse_file(lines, check_sorted=namespace.sorted, end=namespace.end)
     else:
         with open(ledger_file, "r") as f:
-            root, transactions = parse_file(f, check_sorted=namespace.sorted)
+            root, transactions = parse_file(f, check_sorted=namespace.sorted, end=namespace.end)
 
     kwargs = {k: v for k, v in vars(namespace).items()}
     namespace.func(root, transactions, namespace.accounts, **kwargs,)
 
 
-def parse_file(f, root=Account(), check_sorted=False):
+def parse_file(f, root=Account(), check_sorted=False, end=None):
 
     transactions = []
     t = None
@@ -352,6 +352,8 @@ def parse_file(f, root=Account(), check_sorted=False):
                     c = getCurrencySymbol(value)
                     root.setMarketPrice(currency, c, v)
                 elif data[0].isdigit():
+                    if end is not None and itemStr[0] > end:
+                        break
                     t = Transaction(date=itemStr[0], title=" ".join(itemStr[1:]), root=root, line_num=i)
                     if check_sorted and transactions:
                         if transactions[-1] > t:

@@ -147,6 +147,11 @@ class ParserTest(unittest.TestCase):
         assert(root.children)
         assert(transactions)
 
+    def test_parse_file_end(self):
+        lines = self.lines + ["2048/01/01 Bad date", "    JUNK $3"]
+        self.assertRaises(Exception, parse_file, lines)
+        parse_file(self.lines, end="2021")
+
     def test_subcommands(self):
         for cmd in ["balance", "register", "report"]:
             with self.subTest(cmd=cmd):
