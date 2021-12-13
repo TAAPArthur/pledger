@@ -189,6 +189,63 @@ class AutoTransactionTest(unittest.TestCase):
         root, transactions = parse_file(self.abs_lines)
 
 
+class AutoPeriodicTransactionTest(unittest.TestCase):
+    lines = """
+2000/01/01 Loaning someone money
+    Loan:Car                                $10000
+    Assets:Debit
+
+~monthly
+    .Loan:Car					       =$0
+    Interest
+
+= ^Loan:Car$
+    .Loan:Car:Interest                        -.01
+    Loan:Car					         -1
+
+2000/02/01 FirstPayment
+    Loan:Car:Payment                                -$100
+    Assets:Debit
+    """.splitlines()
+
+    lines_shorthand = """
+2000/01/01 Loaning someone money
+    Assets:Debit
+    Loan:Car                                $10000
+
+I Loan:Car ~monthly -(.12 / 12) Interest :Interest
+
+2000/02/01 FirstPayment
+    Loan:Car:Payment                                -$100
+    Assets:Debit
+    """.splitlines()
+
+    lines_shorthand_close = """
+2000/01/01 Loaning someone money
+    Assets:Debit
+    Loan:Car                                $10000
+
+I Loan:Car ~monthly -1 Interest :Interest
+C Loan:Car
+
+2000/02/01 FirstPayment
+    Loan:Car:Payment                                -$100
+    Assets:Debit
+    """.splitlines()
+
+    def test_loan(self):
+        root, transactions = parse_file(self.lines)
+        self.assertEqual(int(root.getAccount("Loan").getValue("$")), 10000)
+
+    def test_loan_shorthand(self):
+        root, transactions = parse_file(self.lines_shorthand)
+        self.assertEqual(int(root.getAccount("Loan").getValue("$")), 10000)
+
+    def test_loan_shorthand_close(self):
+        root, transactions = parse_file(self.lines_shorthand_close)
+        self.assertEqual(int(root.getAccount("Loan").getValue("$")), 10000 - 100)
+
+
 class ParserTest(unittest.TestCase):
     lines = """
 2000/01/01 * Start
@@ -214,6 +271,9 @@ class ParserTest(unittest.TestCase):
         root, transactions = parse_file(self.lines)
         assert(root.children)
         assert(transactions)
+
+    def test_parse_file_empty(self):
+        root, transactions = parse_file([])
 
     def test_parse_file_end(self):
         lines = self.lines + ["2048/01/01 Bad date", "    JUNK $3"]

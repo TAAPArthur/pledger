@@ -189,10 +189,11 @@ class TransactionItem:
 
 
 class AutoTransaction:
-    def __init__(self, pattern, root):
+    def __init__(self, pattern, root, label):
         self.pattern = re.compile(pattern)
         self.root = root
         self.items = []
+        self.label = label
 
     def addItem(self, accountName, token=None, **kwargs):
         account = self.root.getAccount(accountName)
@@ -211,7 +212,7 @@ class AutoTransaction:
         for item, accountName in self.items:
             c = item.getSingleCurrency()
             value = item.getValue(c) if c else item.getValue(c) * refItem.getValue(refCurrency)
-            transaction.addItem(accountName, (c or refCurrency, value), line_num=item.line_num)
+            transaction.addItem(accountName if accountName[0] != ":" else refItem.account.getProperName() + accountName, (c or refCurrency, value), line_num=item.line_num)
 
 
 class Transaction:
@@ -398,16 +399,33 @@ def parse_file(f, root=None, check_sorted=False, end=None):
     transactions = []
     auto_transactions = []
     periodic_transactions = []
-    t = None
+    t = last_t = None
     lastDate = None
+
+    def periodic_transaction_helper(p_type, label, lastDate):
+        if p_type == "yearly":
+            index = 0
+            d = next_date(lastDate.replace(month=1), index)
+        elif p_type == "monthly":
+            index = 1
+            d = next_date(lastDate.replace(day=1), index)
+        elif p_type == "daily":
+            index = 2
+            d = next_date(lastDate, index)
+        l = []
+        periodic_transactions.append([d, label, index, l])
+        periodic_transactions.sort()
+        return l
 
     def helper(t, itemStr):
         item = t.addItem(itemStr[0], " ".join(itemStr[1:]), line_num=i)
+        if isinstance(item, AutoTransaction):
+            return
+
         for auto_transaction in auto_transactions:
             if auto_transaction != t and auto_transaction.matchesTransactionItem(item):
                 auto_transaction.addToTransaction(t, item)
     for i, line in enumerate(f):
-        last_t = t
         try:
             commentSplit = line.split(";")
             data, _ = commentSplit[0], commentSplit[1:]
@@ -423,21 +441,39 @@ def parse_file(f, root=None, check_sorted=False, end=None):
                 elif data[0] in ";#%|*":  # is comment
                     pass
                 elif data[0] == "~":  # is perodic expression; currently unsupported
-                    if itemStr[0][1:] == "yearly":
-                        index = 0
-                        d = next_date(lastDate.replace(month=1), index)
-                    elif itemStr[0][1:] == "monthly":
-                        index = 1
-                        d = next_date(lastDate.replace(day=1), index)
-                    elif itemStr[0][1:] == "daily":
-                        index = 2
-                        d = next_date(lastDate, index)
-                    t = []
-                    periodic_transactions.append([d, data[1:], index, t])
-                    periodic_transactions.sort()
+                    t = periodic_transaction_helper(itemStr[0][1:], label=data[1:], lastDate=lastDate)
                 elif data[0] == "=":  # is automatic expression
-                    t = AutoTransaction(" ".join(itemStr[1:]), root=root, )
+                    t = AutoTransaction(itemStr[1], root=root, label=itemStr[2:])
                     auto_transactions.append(t)
+                elif data[0] == "I":
+                    if t:
+                        t.commit()
+                        t = last_t = None
+                    match = re.search("I ([\w:]*) ~(\w*) ([0-9\.\+-/ )(]*) ([\w:]*) ([\w:]*) ?(.*)", line)
+                    accountName = match.group(1)
+                    value = match.group(3)
+                    label = match.group(6) or ("Interest " + accountName)
+                    interestSourceAccount, interestDestAccount = match.group(4), match.group(5)
+                    p_trans = periodic_transaction_helper(match.group(2), label, lastDate)
+                    p_trans.append((f".{accountName}", "=$0"))
+                    p_trans.append((interestSourceAccount, ""))
+
+                    a_trans = AutoTransaction(f"^{accountName}$", root=root, label=label)
+                    a_trans.addItem(f".{accountName}", "-1", line_num=i)
+                    a_trans.addItem(interestDestAccount, token=value, line_num=i)
+                    auto_transactions.append(a_trans)
+
+                elif data[0] == "C":
+                    label = itemStr[1]
+                    for a in auto_transactions:
+                        if a.label == label:
+                            auto_transactions.remove(a)
+                            break
+                    for p in periodic_transactions:
+                        if p[1] == label:
+                            periodic_transactions.remove(p)
+                            break
+
                 elif data[0] == "P":
                     _, date, currency, value = data.split()
 
@@ -466,8 +502,10 @@ def parse_file(f, root=None, check_sorted=False, end=None):
             raise e
         if isinstance(last_t, Transaction) and last_t != t:
             last_t.commit()
+        last_t = t
 
-    transactions[-1].commit()
+    if transactions:
+        last_t.commit()
 
     return root, transactions
 
