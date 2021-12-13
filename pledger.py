@@ -49,8 +49,14 @@ class Account:
     def filterByDepth(self, depth):
         return depth is None or self.getDepth() < depth
 
+    @staticmethod
+    def isHidden(name):
+        return name.startswith(".")
+
     def getAccount(self, name):
         parent = self
+        if name[0] in (":", "."):
+            name = name[1:]
         for component in name.split(":"):
             if component not in parent.children.keys():
                 parent.children[component] = Account(component, parent)
@@ -94,13 +100,15 @@ class Account:
 
 
 class TransactionItem:
-    def __init__(self, account, token=None, line_num=None):
+    def __init__(self, account, token=None, line_num=None, hidden=False):
         self.account = account
         self.values = {}
         self.postAccountValue = {}
         self.finalValue = None
         self.line_num = line_num
         self.__parse(token)
+
+        self.hidden = hidden
 
     def __str__(self):
         return "#{} {} {}".format(self.line_num, self.account.getProperName(), self.values)
@@ -136,6 +144,9 @@ class TransactionItem:
                 self.setValue(getCurrencySymbol(token), eval(currency_regex.sub("", token)))
             else:
                 self.setValue(getCurrencySymbol(token), currency_regex.sub("", token))
+
+    def isHidden(self):
+        return self.hidden
 
     def getValue(self, currency):
         return self.values.get(currency, 0)
@@ -233,7 +244,7 @@ class Transaction:
 
     def addItem(self, accountName, token=None, **kwargs):
         account = self.root.getAccount(accountName)
-        item = TransactionItem(account, token, **kwargs)
+        item = TransactionItem(account, token, hidden=Account.isHidden(accountName), **kwargs)
         self.items.append(item)
         if item.hasImplicitValue():
             assert self.inferred_item is None
@@ -301,7 +312,7 @@ def balance(root, transactions, filterStr=None, market=None, depth=None, **kwarg
 def register(root, transactions, filterStr=None, market=None, start=None, **kwargs):
     for transaction in transactions:
         for item in transaction.items:
-            if not filterStr or item.account.matches(filterStr):
+            if not item.isHidden() and (not filterStr or item.account.matches(filterStr)):
                 for c in item.getCurrencies():
                     print("{:50.50s}\t{:20.20s}\t{:3.3s}{:-12.2f}\t{:3.3s}{:-12.2f}".format(transaction.getHeader(), item.account.getProperName(), c, item.getValue(c), c, item.getPostAccountValue(c)))
 
