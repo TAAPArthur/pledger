@@ -318,7 +318,7 @@ def register(root, transactions, filterStr=None, market=None, start=None, **kwar
                     print("{:50.50s}\t{:20.20s}\t{:3.3s}{:-12.2f}\t{:3.3s}{:-12.2f}".format(transaction.getHeader(), item.account.getProperName(), c, item.getValue(c), c, item.getPostAccountValue(c)))
 
 
-def report(root, transactions, filterStr=None, date_index=1, market="$", **kwargs):
+def report(root, transactions, filterStr=None, date_index=1, market="$", invert=False, **kwargs):
     groups = defaultdict(lambda: 0)
     for transaction in transactions:
         key = transaction.get_date_identifier(date_index if date_index is not None else 1)
@@ -330,8 +330,9 @@ def report(root, transactions, filterStr=None, date_index=1, market="$", **kwarg
                     for c in item.getCurrencies():
                         groups[key + c] += item.getValue(c)
 
+    sign = -1 if invert else 1
     for key, value in groups.items():
-        print(f"{key:.50s}, {value:-12.2f}")
+        print(f"{key:.50s}, {value * sign :-12.2f}")
 
 
 def parse_args(args=None, lines=None):
@@ -358,6 +359,7 @@ def parse_args(args=None, lines=None):
 
     report_parser = sub_parsers.add_parser("report", description="List items involving account", aliases=["rep"], parents=[shared_parser])
     report_parser.add_argument("--daily", "-d", action="store_const", const=2, dest="date_index")
+    report_parser.add_argument("--invert", "-v", action="store_const", const=True, default=False)
     report_parser.add_argument("--monthly", "-m", action="store_const", const=1, dest="date_index")
     report_parser.add_argument("--yearly", "-y", action="store_const", const=0, dest="date_index")
     report_parser.set_defaults(func=report)
