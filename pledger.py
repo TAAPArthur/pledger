@@ -34,6 +34,9 @@ class Account:
             parentName += ":"
         return parentName + self.name
 
+    def getAncestor(self, depth):
+        return self if self.filterByDepth(depth) else self.parent.getAncestor(depth)
+
     def __str__(self):
         return "Name:{} Children:{}".format(self.getProperName(), self.children)
 
@@ -103,7 +106,6 @@ class TransactionItem:
     def __init__(self, account, token=None, line_num=None, hidden=False):
         self.account = account
         self.values = {}
-        self.postAccountValue = {}
         self.finalValue = None
         self.line_num = line_num
         self.__parse(token)
@@ -154,12 +156,6 @@ class TransactionItem:
     def setValue(self, currency, value):
         assert currency not in self.values
         self.values[currency] = Decimal(value)
-
-    def setPostAccountValue(self, c, value):
-        self.postAccountValue[c] = value
-
-    def getPostAccountValue(self, c):
-        return self.postAccountValue[c]
 
     def isMissingValue(self):
         return not self.values
@@ -269,7 +265,6 @@ class Transaction:
 
             for item in self.items:
                 item.account.addValue(c, item.getValue(c), self.initialize)
-                item.setPostAccountValue(c, item.account.getValue(c))
                 item.postVerify()
 
 
@@ -310,12 +305,18 @@ def balance(root, transactions, filterStr=None, market=None, depth=None, **kwarg
     return running_total
 
 
-def register(root, transactions, filterStr=None, market=None, start=None, **kwargs):
+def register(root, transactions, filterStr=None, market=None, start=None, depth=None, **kwargs):
+    root = Account()
     for transaction in transactions:
         for item in transaction.items:
+            a = root.getAccount(item.account.getProperName())
+            for c in item.getCurrencies():
+                a.addValue(c, item.getValue(c))
+
             if not item.isHidden() and (not filterStr or item.account.matches(filterStr)):
+                a = root.getAccount(item.account.getProperName()).getAncestor(depth)
                 for c in item.getCurrencies():
-                    print("{:50.50s}\t{:20.20s}\t{:3.3s}{:-12.2f}\t{:3.3s}{:-12.2f}".format(transaction.getHeader(), item.account.getProperName(), c, item.getValue(c), c, item.getPostAccountValue(c)))
+                    print("{:50.50s}\t{:20.20s}\t{:3.3s}{:-12.2f}\t{:3.3s}{:-12.2f}".format(transaction.getHeader(), a.getProperName(), c, item.getValue(c), c, a.getValue(c)))
 
 
 def report(root, transactions, filterStr=None, date_index=1, market="$", invert=False, **kwargs):
@@ -355,6 +356,7 @@ def parse_args(args=None, lines=None):
     balance_parser.set_defaults(func=balance)
 
     register_parser = sub_parsers.add_parser("register", description="List items involving account", aliases=["reg", "r"], parents=[shared_parser])
+    register_parser.add_argument("--depth", "-d", type=int)
     register_parser.set_defaults(func=register)
 
     report_parser = sub_parsers.add_parser("report", description="List items involving account", aliases=["rep"], parents=[shared_parser])
