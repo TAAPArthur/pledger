@@ -468,7 +468,7 @@ def parse_file(f, root=None, check_sorted=False, end=None):
                     auto_transactions.append(a_trans)
 
                 elif data[0] == "C":
-                    label = itemStr[1]
+                    label = " ".join(itemStr[1:])
                     for a in auto_transactions:
                         if a.label == label:
                             auto_transactions.remove(a)

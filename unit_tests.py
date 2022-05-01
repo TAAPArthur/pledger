@@ -225,8 +225,8 @@ I Loan:Car ~monthly -(.12 / 12) Interest :Interest
     Assets:Debit
     Loan:Car                                $10000
 
-I Loan:Car ~monthly -1 Interest :Interest
-C Loan:Car
+I Loan:Car ~monthly -.1 Interest :Interest
+C Interest Loan:Car
 
 2000/02/01 FirstPayment
     Loan:Car:Payment                                -$100
