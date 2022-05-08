@@ -181,7 +181,7 @@ class TransactionItem:
         if self.finalValue:
             c, value = self.finalValue
             if abs(self.account.getValue(c) - value) > 1e-6:
-                raise ValueError("Expected Value {} instead of {}".format(value, self.account.getValue(c)))
+                raise ValueError("Expected Value {} instead of {} at {}".format(value, self.account.getValue(c), self.line_num))
 
 
 class AutoTransaction:
@@ -421,15 +421,17 @@ def parse_file(f, root=None, check_sorted=False, end=None):
         periodic_transactions.sort()
         return l
 
-    def helper(t, itemStr):
-        item = t.addItem(itemStr[0], " ".join(itemStr[1:]), line_num=i)
+    def helper(t, itemStr, line_num):
+        item = t.addItem(itemStr[0], " ".join(itemStr[1:]), line_num=line_num)
         if isinstance(item, AutoTransaction):
             return
 
         for auto_transaction in auto_transactions:
             if auto_transaction != t and auto_transaction.matchesTransactionItem(item):
                 auto_transaction.addToTransaction(t, item)
-    for i, line in enumerate(f):
+    line_num = 0
+    for line in f:
+        line_num += 1
         try:
             commentSplit = line.split(";")
             data, _ = commentSplit[0], commentSplit[1:]
@@ -440,7 +442,7 @@ def parse_file(f, root=None, check_sorted=False, end=None):
                     if isinstance(t, list):
                         t.append(itemStr)
                     elif t:
-                        helper(t, itemStr)
+                        helper(t, itemStr, line_num)
 
                 elif data[0] in ";#%|*":  # is comment
                     pass
@@ -463,8 +465,8 @@ def parse_file(f, root=None, check_sorted=False, end=None):
                     p_trans.append((interestSourceAccount, ""))
 
                     a_trans = AutoTransaction(f"^{accountName}$", root=root, label=label)
-                    a_trans.addItem(f".{accountName}", "-1", line_num=i)
-                    a_trans.addItem(interestDestAccount, token=value, line_num=i)
+                    a_trans.addItem(f".{accountName}", "-1", line_num=line_num)
+                    a_trans.addItem(interestDestAccount, token=value, line_num=line_num)
                     auto_transactions.append(a_trans)
 
                 elif data[0] == "C":
@@ -489,20 +491,20 @@ def parse_file(f, root=None, check_sorted=False, end=None):
                         break
                     lastDate = datetime.date(*list(map(int, itemStr[0].split("/"))))
                     while periodic_transactions and lastDate >= periodic_transactions[0][0]:
-                        t = Transaction(date=periodic_transactions[0][0].strftime('%Y/%m/%d'), title=periodic_transactions[0][1], root=root, line_num=i)
+                        t = Transaction(date=periodic_transactions[0][0].strftime('%Y/%m/%d'), title=periodic_transactions[0][1], root=root, line_num=line_num)
                         transactions.append(t)
                         for args in periodic_transactions[0][-1]:
-                            helper(t, args)
+                            helper(t, args, line_num)
                         t.commit()
                         periodic_transactions[0][0] = next_date(periodic_transactions[0][0], periodic_transactions[0][-2])
                         periodic_transactions.sort()
-                    t = Transaction(date=itemStr[0], title=" ".join(itemStr[1:]), root=root, line_num=i)
+                    t = Transaction(date=itemStr[0], title=" ".join(itemStr[1:]), root=root, line_num=line_num)
                     if check_sorted and transactions:
                         if transactions[-1] > t:
                             logging.warning("Not sorted %s %s", transactions[-1], t)
                     transactions.append(t)
         except Exception as e:
-            logging.error("Error processing line #%d %s", i, line)
+            logging.error("Error processing line #%d %s", line_num, line)
             raise e
         if isinstance(last_t, Transaction) and last_t != t:
             last_t.commit()
