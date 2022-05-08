@@ -94,8 +94,13 @@ class TransactionTest(unittest.TestCase):
         self.assertRaises(ValueError, t.commit)
 
     def test_validation_imblanced(self):
-        self.dummyAdd("Assets", "$100")
-        self.assertRaises(ValueError, self.dummyAdd, "Assets", "$10=$10")
+        accountName = "Assets"
+        for value in (-10, 10):
+            with self.subTest(value=value):
+                t = Transaction("2000/01/01", "Test", Account())
+                t.addItem(accountName, str(value))
+                t.addItem("Dummy", "=0")
+                self.assertRaises(ValueError, t.commit)
 
     def test_validation_decimal(self):
         self.dummyAdd("Assets", "$1.0")

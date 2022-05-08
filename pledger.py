@@ -259,7 +259,7 @@ class Transaction:
                 if self.inferred_item:
                     self.inferred_item.setValue(c, -s)
                     s = 0
-                if s > 1e-6:
+                if abs(s) > 1e-6:
                     logging.error("Transaction doesn't balance %.02f '%s' %s", s, c, [item.getValue(c) for item in self.items])
                     raise ValueError(f"Transaction doesn't balance at {self.line_num}")
 
